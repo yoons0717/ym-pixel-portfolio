@@ -1,25 +1,61 @@
 import React, {useEffect, useRef} from "react";
 import Phaser from "phaser";
 
+interface RoomConfig {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface WallConfig {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 class PortfolioScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private baseScale: number = 6; // 기본 스케일 고정값
-  private cameraZoom!: number; // 카메라 줌 저장용
+  private readonly baseScale: number = 6;
+  private cameraZoom!: number;
 
-  // 공통 문 좌표 상수
-  private readonly DOOR_START = 112;
-  private readonly DOOR_END = 144;
+  private readonly MAP_STRUCTURE = {
+    WALL_THICKNESS: 1,
+    DOOR_START: 112,
+    DOOR_END: 144,
+    ROOMS: {
+      LEFT: {
+        left: 64,
+        right: 176,
+        top: 64,
+        bottom: 160,
+      },
+      RIGHT: {
+        left: 224,
+        right: 336,
+        top: 64,
+        bottom: 176,
+      },
+      CORRIDOR: {
+        left: 177,
+        right: 224,
+      },
+    },
+    PLAYER_START: {x: 90, y: 90},
+  };
 
   constructor() {
-    super({key: "PortfolioScene"});
+    super({
+      key: "PortfolioScene",
+    });
   }
 
   preload() {
     console.log("에셋 로딩 시작...");
 
     this.load.image("room_map", "assets/room_map.png");
-
     this.load.spritesheet(
       "character_spritesheet",
       "assets/character_spritesheet.png",
@@ -29,7 +65,6 @@ class PortfolioScene extends Phaser.Scene {
       }
     );
 
-    // 빈 텍스처 생성 (벽 충돌체용)
     this.load.on("ready", () => {
       this.add.graphics().generateTexture("invisible", 1, 1);
     });
@@ -44,355 +79,274 @@ class PortfolioScene extends Phaser.Scene {
   }
 
   create() {
-    const gameWidth = this.scale.width;
-    const gameHeight = this.scale.height;
+    const {width: gameWidth, height: gameHeight} = this.scale;
     console.log("씬 생성 시작...", gameWidth, gameHeight);
 
-    // 카메라 줌 계산 (화면 크기에 따라 조정)
+    this.initializeCamera(gameWidth, gameHeight);
+    this.setupMap();
+    this.createPlayer();
+    this.setupPhysics();
+    this.createMapBounds();
+    this.createPlayerAnimations();
+    this.setupControls();
+  }
+
+  private initializeCamera(gameWidth: number, gameHeight: number) {
     this.cameraZoom = this.calculateCameraZoom(gameWidth, gameHeight);
     console.log("계산된 카메라 줌:", this.cameraZoom);
-
-    // 물리 엔진 활성화
-    this.physics.world.setBounds(0, 0, gameWidth, gameHeight);
-
-    const roomMap = this.add.image(
-      0, // 맵을 월드 좌표 (0,0)에 배치
-      0,
-      "room_map"
-    );
-    roomMap.setOrigin(0, 0); // 원점을 왼쪽 상단으로 설정
-
-    // 고정 스케일 적용
-    roomMap.setScale(this.baseScale);
-
-    const mapDisplayWidth = roomMap.displayWidth;
-    const mapDisplayHeight = roomMap.displayHeight;
-
-    console.log("맵 표시 크기:", mapDisplayWidth, mapDisplayHeight);
-
-    this.player = this.physics.add.sprite(
-      90 * this.baseScale, // 왼쪽 방 문 바로 옆
-      90 * this.baseScale,
-      "character_spritesheet",
-      960
-    );
-
-    // 캐릭터에도 고정 스케일 적용
-    this.player.setScale(this.baseScale);
-
-    // 플레이어 이동 범위를 맵 경계로 제한
-    this.player.body!.setCollideWorldBounds(false);
-
-    // 물리 월드를 맵 크기에 맞게 확장
-    this.physics.world.setBounds(0, 0, mapDisplayWidth, mapDisplayHeight);
-
-    // 카메라 경계를 맵 크기에 맞게 설정
-    this.cameras.main.setBounds(0, 0, mapDisplayWidth, mapDisplayHeight);
-    this.cameras.main.startFollow(this.player, true, 0.05, 0.05); // 더 부드러운 팔로우
-
-    // 카메라 줌 적용
-    this.cameras.main.setZoom(this.cameraZoom);
-
-    // 맵 벽 생성
-    this.createComplexMapBounds();
-
-    // 애니메이션 생성
-    this.createPlayerAnimations();
-
-    // 키보드 입력 설정
-    this.cursors = this.input.keyboard!.createCursorKeys();
-
-    // 화면 크기 변경 이벤트 리스너
     this.scale.on("resize", this.handleResize, this);
   }
 
+  private setupMap() {
+    const roomMap = this.add.image(0, 0, "room_map");
+    roomMap.setOrigin(0, 0);
+    roomMap.setScale(this.baseScale);
+
+    const {displayWidth, displayHeight} = roomMap;
+    console.log("맵 표시 크기:", displayWidth, displayHeight);
+
+    this.cameras.main.setBounds(0, 0, displayWidth, displayHeight);
+    this.cameras.main.setZoom(this.cameraZoom);
+    this.physics.world.setBounds(0, 0, displayWidth, displayHeight);
+  }
+
+  private createPlayer() {
+    const {x, y} = this.MAP_STRUCTURE.PLAYER_START;
+    this.player = this.physics.add.sprite(
+      x * this.baseScale,
+      y * this.baseScale,
+      "character_spritesheet",
+      960
+    );
+    this.player.setScale(this.baseScale);
+    this.player.body!.setCollideWorldBounds(false);
+
+    this.cameras.main.startFollow(this.player, true, 0.05, 0.05);
+  }
+
+  private setupPhysics() {
+    this.physics.world.setBounds(0, 0, this.scale.width, this.scale.height);
+  }
+
+  private setupControls() {
+    this.cursors = this.input.keyboard!.createCursorKeys();
+  }
+
   private calculateCameraZoom(gameWidth: number, gameHeight: number): number {
-    // 기준 해상도 (예: 1920x1080)
     const baseWidth = 1920;
     const baseHeight = 1080;
     const baseZoom = 1;
 
-    // 화면 크기에 따른 줌 계산
     const scaleX = gameWidth / baseWidth;
     const scaleY = gameHeight / baseHeight;
-
-    // 더 작은 스케일을 선택하여 화면에 맞게 조정
     const dynamicZoom = Math.min(scaleX, scaleY) * baseZoom;
 
-    // 최소/최대 줌 제한 (더 확대된 상태로)
     const minZoom = 0.8;
     const maxZoom = 3.0;
 
     return Math.max(minZoom, Math.min(maxZoom, dynamicZoom));
   }
 
-  private handleResize(gameSize: Phaser.Structs.Size) {
-    const newWidth = gameSize.width;
-    const newHeight = gameSize.height;
+  private handleResize = (gameSize: Phaser.Structs.Size) => {
+    const newZoom = this.calculateCameraZoom(gameSize.width, gameSize.height);
 
-    // 새로운 줌 계산
-    const newZoom = this.calculateCameraZoom(newWidth, newHeight);
-
-    // 줌이 변경된 경우에만 업데이트
     if (Math.abs(this.cameraZoom - newZoom) > 0.01) {
       this.cameraZoom = newZoom;
-
-      // 카메라 줌 업데이트
       this.cameras.main.setZoom(this.cameraZoom);
-
       console.log("화면 크기 변경으로 인한 줌 업데이트:", this.cameraZoom);
     }
-  }
+  };
 
-  private createComplexMapBounds() {
-    console.log("복잡한 맵 구조 벽 생성 시작");
+  private createMapBounds() {
+    console.log("맵 구조 벽 생성 시작");
     const walls = this.physics.add.staticGroup();
 
-    // === 왼쪽 방 벽들 ===
-    this.createLeftRoomWalls(walls);
-
-    // === 오른쪽 방 벽들 ===
-    this.createRightRoomWalls(walls);
-
-    // === 중간 통로 벽들 ===
+    this.createRoomWalls(walls, this.MAP_STRUCTURE.ROOMS.LEFT, {
+      hasRightDoor: true,
+    });
+    this.createRoomWalls(walls, this.MAP_STRUCTURE.ROOMS.RIGHT, {
+      hasLeftDoor: true,
+    });
     this.createCorridorWalls(walls);
 
-    // 플레이어와 모든 벽 충돌
     this.physics.add.collider(this.player, walls);
-
-    console.log("복잡한 맵 구조 벽 생성 완료");
+    console.log("맵 구조 벽 생성 완료");
   }
 
-  private createLeftRoomWalls(walls: Phaser.Physics.Arcade.StaticGroup) {
-    console.log("왼쪽 방 벽 생성 중...");
+  private createRoomWalls(
+    walls: Phaser.Physics.Arcade.StaticGroup,
+    roomConfig: RoomConfig,
+    options: {hasLeftDoor?: boolean; hasRightDoor?: boolean} = {}
+  ) {
+    const room = this.scaleRoom(roomConfig);
+    const {width, height, centerX, centerY} = this.getRoomDimensions(room);
 
-    const wallThickness = 1;
-    const leftRoom = {
-      left: 64 * this.baseScale,
-      right: 176 * this.baseScale,
-      top: 64 * this.baseScale,
-      bottom: 160 * this.baseScale,
-    };
-
-    const roomWidth = leftRoom.right - leftRoom.left;
-    const roomHeight = leftRoom.bottom - leftRoom.top;
-    const roomCenterX = leftRoom.left + roomWidth / 2;
-    const roomCenterY = leftRoom.top + roomHeight / 2;
-
-    // 기본 벽들
-    const wallConfigs = [
+    // 기본 벽들 (상, 하)
+    const basicWalls: WallConfig[] = [
       {
-        x: leftRoom.left - wallThickness / 2,
-        y: roomCenterY,
-        width: wallThickness,
-        height: roomHeight,
+        x: centerX,
+        y: room.top - this.MAP_STRUCTURE.WALL_THICKNESS / 2,
+        width,
+        height: this.MAP_STRUCTURE.WALL_THICKNESS,
       },
       {
-        x: roomCenterX,
-        y: leftRoom.top - wallThickness / 2,
-        width: roomWidth,
-        height: wallThickness,
-      },
-      {
-        x: roomCenterX,
-        y: leftRoom.bottom + wallThickness / 2,
-        width: roomWidth,
-        height: wallThickness,
+        x: centerX,
+        y: room.bottom + this.MAP_STRUCTURE.WALL_THICKNESS / 2,
+        width,
+        height: this.MAP_STRUCTURE.WALL_THICKNESS,
       },
     ];
 
-    wallConfigs.forEach((config) =>
-      this.createWall(config.x, config.y, config.width, config.height, walls)
-    );
+    // 왼쪽 벽 (문이 없는 경우에만)
+    if (!options.hasLeftDoor) {
+      basicWalls.push({
+        x: room.left - this.MAP_STRUCTURE.WALL_THICKNESS / 2,
+        y: centerY,
+        width: this.MAP_STRUCTURE.WALL_THICKNESS,
+        height,
+      });
+    }
 
-    // 오른쪽 벽 (문 제외)
-    const doorStart = this.DOOR_START * this.baseScale;
-    const doorEnd = this.DOOR_END * this.baseScale;
+    // 오른쪽 벽 (문이 없는 경우에만)
+    if (!options.hasRightDoor) {
+      basicWalls.push({
+        x: room.right + this.MAP_STRUCTURE.WALL_THICKNESS / 2,
+        y: centerY,
+        width: this.MAP_STRUCTURE.WALL_THICKNESS,
+        height,
+      });
+    }
 
-    const rightWallConfigs = [
-      {
-        x: leftRoom.right + wallThickness / 2,
-        y: leftRoom.top + (doorStart - leftRoom.top) / 2,
-        width: wallThickness,
-        height: doorStart - leftRoom.top,
-      },
-      {
-        x: leftRoom.right + wallThickness / 2,
-        y: doorEnd + (leftRoom.bottom - doorEnd) / 2,
-        width: wallThickness,
-        height: leftRoom.bottom - doorEnd - wallThickness,
-      },
-    ];
+    // 왼쪽 벽에 문이 있는 경우
+    if (options.hasLeftDoor) {
+      const doorWalls = this.createDoorWalls(room, "left");
+      basicWalls.push(...doorWalls);
+    }
 
-    rightWallConfigs.forEach((config) =>
-      this.createWall(config.x, config.y, config.width, config.height, walls)
-    );
+    // 오른쪽 벽에 문이 있는 경우
+    if (options.hasRightDoor) {
+      const doorWalls = this.createDoorWalls(room, "right");
+      basicWalls.push(...doorWalls);
+    }
+
+    basicWalls.forEach((config) => this.createWall(config, walls));
   }
 
-  private createRightRoomWalls(walls: Phaser.Physics.Arcade.StaticGroup) {
-    console.log("오른쪽 방 벽 생성 중...");
+  private createDoorWalls(
+    room: RoomConfig,
+    side: "left" | "right"
+  ): WallConfig[] {
+    const doorStart = this.MAP_STRUCTURE.DOOR_START * this.baseScale;
+    const doorEnd = this.MAP_STRUCTURE.DOOR_END * this.baseScale;
+    const wallX =
+      side === "right"
+        ? room.right + this.MAP_STRUCTURE.WALL_THICKNESS / 2
+        : room.left - this.MAP_STRUCTURE.WALL_THICKNESS / 2;
 
-    const wallThickness = 1;
-    const rightRoom = {
-      left: 224 * this.baseScale,
-      right: 336 * this.baseScale,
-      top: 64 * this.baseScale,
-      bottom: 176 * this.baseScale,
-    };
-
-    const roomWidth = rightRoom.right - rightRoom.left;
-    const roomHeight = rightRoom.bottom - rightRoom.top;
-    const roomCenterX = rightRoom.left + roomWidth / 2;
-    const roomCenterY = rightRoom.top + roomHeight / 2;
-
-    // 기본 벽들
-    const wallConfigs = [
+    return [
       {
-        x: rightRoom.right + wallThickness / 2,
-        y: roomCenterY,
-        width: wallThickness,
-        height: roomHeight,
+        x: wallX,
+        y: room.top + (doorStart - room.top) / 2,
+        width: this.MAP_STRUCTURE.WALL_THICKNESS,
+        height: doorStart - room.top,
       },
       {
-        x: roomCenterX,
-        y: rightRoom.top - wallThickness / 2,
-        width: roomWidth,
-        height: wallThickness,
-      },
-      {
-        x: roomCenterX,
-        y: rightRoom.bottom + wallThickness / 2,
-        width: roomWidth,
-        height: wallThickness,
+        x: wallX,
+        y: doorEnd + (room.bottom - doorEnd) / 2,
+        width: this.MAP_STRUCTURE.WALL_THICKNESS,
+        height: room.bottom - doorEnd - this.MAP_STRUCTURE.WALL_THICKNESS,
       },
     ];
-
-    wallConfigs.forEach((config) =>
-      this.createWall(config.x, config.y, config.width, config.height, walls)
-    );
-
-    // 왼쪽 벽 (문 제외)
-    const doorStart = this.DOOR_START * this.baseScale;
-    const doorEnd = this.DOOR_END * this.baseScale;
-
-    const leftWallConfigs = [
-      {
-        x: rightRoom.left - wallThickness / 2,
-        y: rightRoom.top + (doorStart - rightRoom.top) / 2,
-        width: wallThickness,
-        height: doorStart - rightRoom.top,
-      },
-      {
-        x: rightRoom.left - wallThickness / 2,
-        y: doorEnd + (rightRoom.bottom - doorEnd) / 2,
-        width: wallThickness,
-        height: rightRoom.bottom - doorEnd - wallThickness,
-      },
-    ];
-
-    leftWallConfigs.forEach((config) =>
-      this.createWall(config.x, config.y, config.width, config.height, walls)
-    );
   }
 
   private createCorridorWalls(walls: Phaser.Physics.Arcade.StaticGroup) {
-    console.log("중간 통로 벽 생성 중...");
-
-    const wallThickness = 1;
     const corridor = {
-      left: 177 * this.baseScale,
-      right: 224 * this.baseScale,
-      top: this.DOOR_START * this.baseScale,
-      bottom: this.DOOR_END * this.baseScale,
+      left: this.MAP_STRUCTURE.ROOMS.CORRIDOR.left * this.baseScale,
+      right: this.MAP_STRUCTURE.ROOMS.CORRIDOR.right * this.baseScale,
+      top: this.MAP_STRUCTURE.DOOR_START * this.baseScale,
+      bottom: this.MAP_STRUCTURE.DOOR_END * this.baseScale,
     };
 
     const corridorWidth = corridor.right - corridor.left;
     const corridorCenterX = corridor.left + corridorWidth / 2;
 
-    // 통로 위아래 벽들
-    const wallConfigs = [
+    const wallConfigs: WallConfig[] = [
       {
         x: corridorCenterX,
-        y: corridor.top - wallThickness / 2,
+        y: corridor.top - this.MAP_STRUCTURE.WALL_THICKNESS / 2,
         width: corridorWidth,
-        height: wallThickness,
+        height: this.MAP_STRUCTURE.WALL_THICKNESS,
       },
       {
         x: corridorCenterX,
-        y: corridor.bottom + wallThickness / 2,
+        y: corridor.bottom + this.MAP_STRUCTURE.WALL_THICKNESS / 2,
         width: corridorWidth,
-        height: wallThickness,
+        height: this.MAP_STRUCTURE.WALL_THICKNESS,
       },
     ];
 
-    wallConfigs.forEach((config) =>
-      this.createWall(config.x, config.y, config.width, config.height, walls)
-    );
+    wallConfigs.forEach((config) => this.createWall(config, walls));
   }
 
-  // 공통 헬퍼 함수
+  private scaleRoom(roomConfig: RoomConfig): RoomConfig {
+    return {
+      left: roomConfig.left * this.baseScale,
+      right: roomConfig.right * this.baseScale,
+      top: roomConfig.top * this.baseScale,
+      bottom: roomConfig.bottom * this.baseScale,
+    };
+  }
+
+  private getRoomDimensions(room: RoomConfig) {
+    const width = room.right - room.left;
+    const height = room.bottom - room.top;
+    const centerX = room.left + width / 2;
+    const centerY = room.top + height / 2;
+    return {width, height, centerX, centerY};
+  }
+
   private createWall(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
+    config: WallConfig,
     walls: Phaser.Physics.Arcade.StaticGroup
   ) {
-    const wall = this.physics.add.staticSprite(x, y, "invisible");
-    wall.setSize(width, height);
+    const wall = this.physics.add.staticSprite(config.x, config.y, "invisible");
+    wall.setSize(config.width, config.height);
     wall.setVisible(false);
     walls.add(wall);
     return wall;
   }
 
   private createPlayerAnimations() {
-    // 기본 정지 상태 (현재 프레임 960)
-    this.anims.create({
-      key: "idle",
-      frames: [{key: "character_spritesheet", frame: 960}],
-      frameRate: 1,
-    });
+    const animations = [
+      {
+        key: "idle",
+        frames: [{key: "character_spritesheet", frame: 960}],
+        frameRate: 1,
+      },
+      {key: "walk_down", start: 960, end: 963, frameRate: 8, repeat: -1},
+      {key: "walk_right", start: 999, end: 1002, frameRate: 8, repeat: -1},
+      {key: "walk_up", start: 1038, end: 1041, frameRate: 8, repeat: -1},
+      {key: "walk_left", start: 1077, end: 1080, frameRate: 8, repeat: -1},
+    ];
 
-    // 아래쪽 걷기 (960부터 2-3프레임)
-    this.anims.create({
-      key: "walk_down",
-      frames: this.anims.generateFrameNumbers("character_spritesheet", {
-        start: 960,
-        end: 963,
-      }),
-      frameRate: 8,
-      repeat: -1,
-    });
-
-    // 오른쪽 걷기 (960 + 33)
-    this.anims.create({
-      key: "walk_right",
-      frames: this.anims.generateFrameNumbers("character_spritesheet", {
-        start: 999,
-        end: 1002,
-      }),
-      frameRate: 8,
-      repeat: -1,
-    });
-
-    this.anims.create({
-      key: "walk_up",
-      frames: this.anims.generateFrameNumbers("character_spritesheet", {
-        start: 1038,
-        end: 1041,
-      }),
-      frameRate: 8,
-      repeat: -1,
-    });
-
-    this.anims.create({
-      key: "walk_left",
-      frames: this.anims.generateFrameNumbers("character_spritesheet", {
-        start: 1077,
-        end: 1080,
-      }),
-      frameRate: 8,
-      repeat: -1,
+    animations.forEach((anim) => {
+      if (anim.key === "idle") {
+        this.anims.create({
+          key: anim.key,
+          frames: anim.frames,
+          frameRate: anim.frameRate,
+        });
+      } else {
+        this.anims.create({
+          key: anim.key,
+          frames: this.anims.generateFrameNumbers("character_spritesheet", {
+            start: anim.start!,
+            end: anim.end!,
+          }),
+          frameRate: anim.frameRate,
+          repeat: anim.repeat,
+        });
+      }
     });
 
     console.log("플레이어 애니메이션 생성 완료");
@@ -401,32 +355,26 @@ class PortfolioScene extends Phaser.Scene {
   update() {
     if (!this.player) return;
 
-    // 캐릭터 이동 속도 증가
     const speed = 400;
+    const movements = {
+      left: {x: -speed, y: 0, anim: "walk_left"},
+      right: {x: speed, y: 0, anim: "walk_right"},
+      up: {x: 0, y: -speed, anim: "walk_up"},
+      down: {x: 0, y: speed, anim: "walk_down"},
+    };
+
     let isMoving = false;
 
-    // 플레이어 움직임과 애니메이션
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-speed);
-      this.player.setVelocityY(0);
-      this.player.play("walk_left", true);
-      isMoving = true;
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(speed);
-      this.player.setVelocityY(0);
-      this.player.play("walk_right", true);
-      isMoving = true;
-    } else if (this.cursors.up.isDown) {
-      this.player.setVelocityX(0);
-      this.player.setVelocityY(-speed);
-      this.player.play("walk_up", true);
-      isMoving = true;
-    } else if (this.cursors.down.isDown) {
-      this.player.setVelocityX(0);
-      this.player.setVelocityY(speed);
-      this.player.play("walk_down", true);
-      isMoving = true;
-    } else {
+    for (const [direction, movement] of Object.entries(movements)) {
+      if (this.cursors[direction as keyof typeof this.cursors].isDown) {
+        this.player.setVelocity(movement.x, movement.y);
+        this.player.play(movement.anim, true);
+        isMoving = true;
+        break;
+      }
+    }
+
+    if (!isMoving) {
       this.player.setVelocity(0, 0);
       this.player.play("idle", true);
     }
@@ -447,11 +395,10 @@ const PhaserPortfolio: React.FC = () => {
         parent: gameRef.current,
         backgroundColor: "#3e245a",
         scene: PortfolioScene,
-
         physics: {
           default: "arcade",
           arcade: {
-            debug: true, // 디버그 모드 켜기
+            debug: true,
           },
         },
         scale: {
