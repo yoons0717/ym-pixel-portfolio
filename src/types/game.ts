@@ -13,12 +13,7 @@ export interface GameObject {
   dialog: string;
 }
 
-export type GameObjectType =
-  | "sofa"
-  | "computer"
-  | "bookshelf"
-  | "plant"
-  | "resume";
+export type GameObjectType = 'sofa' | 'computer' | 'bookshelf' | 'plant' | 'resume';
 
 export interface KeyState {
   [key: string]: boolean;
