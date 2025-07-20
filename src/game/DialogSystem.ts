@@ -1,6 +1,5 @@
-// DialogSystem.ts
 import React from 'react';
-import type { MessageContent } from './GameConfig';
+import type { MessageContent } from '../types/game';
 
 export interface DialogState {
   isOpen: boolean;
@@ -15,7 +14,6 @@ interface LinkData {
   endIndex: number;
 }
 
-// 안전한 타입 정의
 interface LinkProps {
   href: string;
   children?: React.ReactNode;
@@ -60,7 +58,6 @@ export class DialogSystem {
       this.closeDialog();
     }
 
-    // JSX Element 또는 string을 처리
     const text = this.parseMessageContent(content);
 
     this.dialogState = {
@@ -220,11 +217,6 @@ export class DialogSystem {
     return { cleanText, links };
   }
 
-  // createLinkButtons 메서드는 이제 사용하지 않으므로 제거하거나 빈 메서드로 유지
-  private createLinkButtons(links: LinkData[]) {
-    // 이제 사용하지 않음 - 텍스트 내 인라인 링크로 대체됨
-  }
-
   private startTyping() {
     console.log('startTyping 시작');
 
@@ -284,7 +276,7 @@ export class DialogSystem {
 
     if (!this.dialogText) return; // null 체크 추가
 
-    const { width, height } = this.scene.cameras.main;
+    const { height } = this.scene.cameras.main;
     const dialogHeight = height * 0.25;
     const dialogX = 0;
     const dialogY = height - dialogHeight;

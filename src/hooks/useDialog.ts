@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { MessageContent } from '../game/GameConfig';
+import type { MessageContent } from '../types/game';
 
 export const useDialog = () => {
   const [isOpen, setIsOpen] = useState(false);

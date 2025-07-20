@@ -1,6 +1,5 @@
-// components/Dialog.tsx
 import React, { useState, useEffect } from 'react';
-import type { MessageContent } from '../game/GameConfig';
+import type { MessageContent } from '../types/game';
 
 interface DialogProps {
   isOpen: boolean;

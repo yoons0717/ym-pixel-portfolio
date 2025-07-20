@@ -1,4 +1,5 @@
-import { MAP_STRUCTURE, type RoomConfig, type WallConfig } from './GameConfig';
+import type { RoomConfig, WallConfig } from '../types/game';
+import { MAP_STRUCTURE } from './mapStructure';
 
 export class WallSystem {
   private scene: Phaser.Scene;

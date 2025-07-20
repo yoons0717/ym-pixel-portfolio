@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { WallSystem } from './WallSystem';
-import { MAP_STRUCTURE } from './GameConfig';
+import { MAP_STRUCTURE } from './mapStructure';
 
 export default class PortfolioScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
