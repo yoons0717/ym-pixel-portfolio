@@ -1,14 +1,13 @@
 import Link from '../components/Link';
-import type { RoomConfig } from '../types/game';
-import type { FurnitureConfig } from './GameConfig';
+import type { FurnitureConfig, RoomConfig } from '../types/game';
 
 export const MAP_STRUCTURE = {
   WALL_THICKNESS: 1,
   DOOR_START: 112,
   DOOR_END: 144,
   ROOMS: {
-    LEFT: { left: 64, right: 176, top: 64, bottom: 160 } as RoomConfig,
-    RIGHT: { left: 224, right: 336, top: 64, bottom: 176 } as RoomConfig,
+    LEFT: { left: 64, right: 176, top: 75, bottom: 160 } as RoomConfig,
+    RIGHT: { left: 224, right: 336, top: 75, bottom: 176 } as RoomConfig,
     CORRIDOR: { left: 177, right: 224 },
   },
   PLAYER_START: {
@@ -18,11 +17,15 @@ export const MAP_STRUCTURE = {
   FURNITURE: {
     SOFA: {
       x: 112,
-      y: 112,
+      y: 114,
       width: 28,
-      height: 24,
-      message:
-        'This is my comfortable sofa where I relax after coding.\nI often get my best ideas here!',
+      height: 15,
+      message: (
+        <>
+          This is where you chill out, watch YouTube, and snack on your favorites. The ultimate spot
+          to relax and do absolutely nothing.
+        </>
+      ),
     } as FurnitureConfig,
     COMPUTER: {
       x: 168,
@@ -30,11 +33,7 @@ export const MAP_STRUCTURE = {
       width: 14,
       height: 20,
       message: (
-        <>
-          This is my PC. I work mostly in JavaScript/TypeScript these days. I've made a couple of
-          games in that language. Check out my{' '}
-          <Link href="https://github.com/username">GitHub</Link>!
-        </>
+        <>This is my PC. Where I spend most of my day turning coffee into code (and bugs).</>
       ),
     } as FurnitureConfig,
     DESK: {
@@ -44,9 +43,8 @@ export const MAP_STRUCTURE = {
       height: 14,
       message: (
         <>
-          This is my workspace where I code and create. Most of my projects are built here! Check
-          out my <Link href="https://github.com/username">GitHub</Link> and my{' '}
-          <Link href="https://portfolio-site.com">Portfolio</Link>!
+          Feel free to stalk my <Link href="https://github.com/yoons0717">GitHub</Link> or shoot me
+          an email at yoons0717@gmail.com - I actually reply!
         </>
       ),
     } as FurnitureConfig,
@@ -57,9 +55,8 @@ export const MAP_STRUCTURE = {
       height: 14,
       message: (
         <>
-          My coding chair. Many hours spent here debugging!
-          <br />
-          Sometimes I fall asleep while coding late at night.
+          This is where every day begins and ends — my bed. Late-night Reels, early-morning scrolls,
+          and everything in between. It’s the coziest corner of my world.
         </>
       ),
     } as FurnitureConfig,

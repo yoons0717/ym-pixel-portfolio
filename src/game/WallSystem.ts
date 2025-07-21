@@ -47,7 +47,6 @@ export class WallSystem {
 
       furnitureItem.setSize(config.width * this.baseScale, config.height * this.baseScale);
       furnitureItem.setVisible(true);
-      furnitureItem.setTint(0x00ff00);
       furnitureItem.setData('message', config.message);
       furnitureItem.setData('name', key);
       furniture.add(furnitureItem);
